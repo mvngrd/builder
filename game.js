@@ -145,43 +145,10 @@ function updatePlayer(lat, lng) {
       .setLngLat([lng, lat])
       .addTo(map);
 
-    map.flyTo({ center: [lng, lat], zoom: 17 });
+    map.setCenter([lng, lat]);
+    map.setZoom(17);
 
-    // Кружок радиуса сбора — используем GeoJSON-источник
-    const circleGeoJSON = {
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [lng, lat]
-      },
-      properties: {}
-    };
-
-    map.on('load', () => {
-      map.addSource('player-circle', {
-        type: 'geojson',
-        data: circleGeoJSON
-      });
-      map.addLayer({
-        id: 'player-circle-layer',
-        type: 'circle',
-        source: 'player-circle',
-        paint: {
-          'circle-radius': {
-            stops: [
-              [16, COLLECT_RADIUS_M * 4],
-              [20, COLLECT_RADIUS_M * 30]
-            ]
-          },
-          'circle-color': '#3b82f6',
-          'circle-opacity': 0.15,
-          'circle-stroke-color': '#3b82f6',
-          'circle-stroke-width': 1
-        }
-      });
-    });
-
-    // Если база ещё не поставлена — ставим здесь
+    // База (если ещё не поставлена)
     if (!markers.base) {
       markers.base = new maplibregl.Marker({ element: emojiEl('🏠') })
         .setLngLat([lng, lat])
@@ -189,20 +156,9 @@ function updatePlayer(lat, lng) {
     }
   } else {
     markers.player.setLngLat([lng, lat]);
-
-    // Обновить источник кружка
-    const src = map.getSource('player-circle');
-    if (src) {
-      src.setData({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [lng, lat] },
-        properties: {}
-      });
-    }
   }
   updateCollectButton();
 }
-
 // ============================================================
 // РЕСУРСЫ
 // ============================================================
