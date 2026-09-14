@@ -1,0 +1,94 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; font-family: system-ui, sans-serif; overflow: hidden; }
+
+#map { position: absolute; inset: 0; }
+
+#hud {
+  position: absolute;
+  top: 10px; left: 10px; right: 10px;
+  z-index: 1000;
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.hud-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.hud-row.inventory span { font-size: 15px; }
+#status { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+
+#actions {
+  position: absolute;
+  bottom: 20px; left: 20px; right: 20px;
+  z-index: 1000;
+  display: flex; gap: 10px;
+}
+#actions button {
+  flex: 1;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 12px;
+  background: #22c55e;
+  color: #fff;
+}
+#actions button:disabled { background: #555; opacity: 0.6; }
+#baseBtn { background: #3b82f6; }
+
+.modal {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 2000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal.hidden { display: none; }
+.modal-content {
+  background: #1e293b;
+  color: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal-content h2 { margin-bottom: 14px; }
+
+.building {
+  background: #334155;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.building h3 { font-size: 15px; margin-bottom: 4px; }
+.building .lvl { font-size: 12px; opacity: 0.7; margin-bottom: 6px; }
+.building .cost { font-size: 13px; margin-bottom: 8px; }
+.building button {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: #22c55e;
+  color: #fff;
+  font-weight: bold;
+}
+.building button:disabled { background: #555; opacity: 0.5; }
+
+#closeBase {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border: none;
+  border-radius: 10px;
+  background: #475569;
+  color: #fff;
+}
+
+.treasure-icon {
+  font-size: 24px;
+  text-align: center;
+  line-height: 28px;
+  filter: drop-shadow(0 0 4px #fff);
+}
