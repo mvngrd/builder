@@ -167,15 +167,15 @@ function updatePlayer(lat, lng) {
           'circle-stroke-color': '#3b82f6',
           'circle-stroke-width': 1,
           'circle-radius': [
-            'interpolate', ['exponential', 2], ['zoom'],
-            15, 2,
-            16, 4,
-            17, 8,
-            18, 16,
-            19, 32,
-            20, 64,
-            21, 128
-          ]
+  'interpolate', ['exponential', 2], ['zoom'],
+  15, 9,
+  16, 18,
+  17, 36,
+  18, 72,
+  19, 143,
+  20, 287,
+  21, 574
+]
         }
       });
     });
