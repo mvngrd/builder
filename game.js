@@ -78,9 +78,9 @@ function saveState() {
 // КАРТА
 // ============================================================
 const map = L.map('map', { zoomControl: false }).setView([55.75, 37.61], 16);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
   maxZoom: 19,
-  attribution: '© OpenStreetMap'
+  attribution: '© OpenStreetMap © CARTO'
 }).addTo(map);
 
 let baseMarker = null;
