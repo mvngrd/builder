@@ -77,11 +77,13 @@ function saveState() {
 // ============================================================
 // КАРТА
 // ============================================================
-const map = L.map('map', { zoomControl: false }).setView([55.75, 37.61], 16);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  maxZoom: 19,
-  attribution: '© OpenStreetMap © CARTO'
-}).addTo(map);
+const map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://tiles.openfreemap.org/styles/liberty',
+  center: [37.61, 55.75],
+  zoom: 16,
+  attributionControl: false
+});
 
 let baseMarker = null;
 let basePos = null;
