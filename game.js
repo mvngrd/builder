@@ -78,7 +78,7 @@ function saveState() {
 // КАРТА
 // ============================================================
 const map = L.map('map', { zoomControl: false }).setView([55.75, 37.61], 16);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '© OpenStreetMap'
 }).addTo(map);
