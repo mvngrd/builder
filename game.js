@@ -15,27 +15,9 @@ const RESOURCE_TYPES = [
 ];
 
 const BUILDINGS = [
-  {
-    id: 'shelter',
-    name: '🏕️ Укрытие',
-    desc: 'Базовое укрытие',
-    maxLevel: 5,
-    cost: (lvl) => ({ wood: 10 * lvl, metal: 5 * lvl }),
-  },
-  {
-    id: 'workshop',
-    name: '🔧 Мастерская',
-    desc: 'Открывает редкие ресурсы',
-    maxLevel: 5,
-    cost: (lvl) => ({ wood: 15 * lvl, metal: 20 * lvl, chip: 2 * lvl }),
-  },
-  {
-    id: 'generator',
-    name: '⚡ Генератор',
-    desc: 'Увеличивает радиус спавна',
-    maxLevel: 5,
-    cost: (lvl) => ({ metal: 25 * lvl, fuel: 5 * lvl }),
-  },
+  { id: 'shelter',   name: '🏕️ Укрытие',   maxLevel: 5, cost: (lvl) => ({ wood: 10 * lvl, metal: 5 * lvl }) },
+  { id: 'workshop',  name: '🔧 Мастерская', maxLevel: 5, cost: (lvl) => ({ wood: 15 * lvl, metal: 20 * lvl, chip: 2 * lvl }) },
+  { id: 'generator', name: '⚡ Генератор',  maxLevel: 5, cost: (lvl) => ({ metal: 25 * lvl, fuel: 5 * lvl }) },
 ];
 
 // ============================================================
@@ -75,7 +57,7 @@ function saveState() {
 }
 
 // ============================================================
-// КАРТА
+// КАРТА (MapLibre)
 // ============================================================
 const map = new maplibregl.Map({
   container: 'map',
@@ -85,8 +67,12 @@ const map = new maplibregl.Map({
   attributionControl: false
 });
 
-let baseMarker = null;
-let basePos = null;
+// Хранилище маркеров MapLibre
+const markers = {
+  player: null,
+  playerCircle: null,
+  base: null,
+};
 
 // ============================================================
 // УТИЛИТЫ
@@ -119,12 +105,22 @@ function pickResource() {
   return RESOURCE_TYPES[0];
 }
 
+// Создать DOM-элемент для эмодзи-маркера
+function emojiEl(emoji, size = 30) {
+  const el = document.createElement('div');
+  el.style.fontSize = (size - 6) + 'px';
+  el.style.lineHeight = size + 'px';
+  el.style.textAlign = 'center';
+  el.style.width = size + 'px';
+  el.style.height = size + 'px';
+  el.style.filter = 'drop-shadow(0 0 4px #fff)';
+  el.textContent = emoji;
+  return el;
+}
+
 // ============================================================
 // ИГРОК
 // ============================================================
-let playerMarker = null;
-let playerCircle = null;
-
 function updatePlayer(lat, lng) {
   if (state.playerPos) {
     const d = distanceM(state.playerPos.lat, state.playerPos.lng, lat, lng);
@@ -135,24 +131,74 @@ function updatePlayer(lat, lng) {
   }
   state.playerPos = { lat, lng };
 
-  if (!playerMarker) {
-    playerMarker = L.circleMarker([lat, lng], {
-      radius: 8, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 1
-    }).addTo(map);
-    playerCircle = L.circle([lat, lng], {
-      radius: COLLECT_RADIUS_M, color: '#3b82f6', fillOpacity: 0.1, weight: 1
-    }).addTo(map);
-    map.setView([lat, lng], 17);
+  // Маркер игрока
+  if (!markers.player) {
+    const el = document.createElement('div');
+    el.style.width = '18px';
+    el.style.height = '18px';
+    el.style.borderRadius = '50%';
+    el.style.background = '#3b82f6';
+    el.style.border = '3px solid #fff';
+    el.style.boxShadow = '0 0 6px rgba(0,0,0,0.4)';
 
-    if (!basePos) {
-      basePos = { lat, lng };
-      baseMarker = L.marker([lat, lng], {
-        icon: L.divIcon({ className: 'treasure-icon', html: '🏠', iconSize: [30, 30], iconAnchor: [15, 15] })
-      }).addTo(map);
+    markers.player = new maplibregl.Marker({ element: el })
+      .setLngLat([lng, lat])
+      .addTo(map);
+
+    map.flyTo({ center: [lng, lat], zoom: 17 });
+
+    // Кружок радиуса сбора — используем GeoJSON-источник
+    const circleGeoJSON = {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [lng, lat]
+      },
+      properties: {}
+    };
+
+    map.on('load', () => {
+      map.addSource('player-circle', {
+        type: 'geojson',
+        data: circleGeoJSON
+      });
+      map.addLayer({
+        id: 'player-circle-layer',
+        type: 'circle',
+        source: 'player-circle',
+        paint: {
+          'circle-radius': {
+            stops: [
+              [16, COLLECT_RADIUS_M * 4],
+              [20, COLLECT_RADIUS_M * 30]
+            ]
+          },
+          'circle-color': '#3b82f6',
+          'circle-opacity': 0.15,
+          'circle-stroke-color': '#3b82f6',
+          'circle-stroke-width': 1
+        }
+      });
+    });
+
+    // Если база ещё не поставлена — ставим здесь
+    if (!markers.base) {
+      markers.base = new maplibregl.Marker({ element: emojiEl('🏠') })
+        .setLngLat([lng, lat])
+        .addTo(map);
     }
   } else {
-    playerMarker.setLatLng([lat, lng]);
-    playerCircle.setLatLng([lat, lng]);
+    markers.player.setLngLat([lng, lat]);
+
+    // Обновить источник кружка
+    const src = map.getSource('player-circle');
+    if (src) {
+      src.setData({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+        properties: {}
+      });
+    }
   }
   updateCollectButton();
 }
@@ -166,18 +212,17 @@ function spawnResource() {
   if (!state.playerPos) return;
   const [lat, lng] = randomOffset(state.playerPos.lat, state.playerPos.lng, SPAWN_RADIUS_M);
   const type = pickResource();
-  const marker = L.marker([lat, lng], {
-    icon: L.divIcon({
-      className: 'treasure-icon', html: type.icon, iconSize: [30, 30], iconAnchor: [15, 15]
-    })
-  }).addTo(map);
-  const res = { id: Date.now() + Math.random(), lat, lng, marker, type, collectedAt: null };
-  marker.on('click', () => {
+  const marker = new maplibregl.Marker({ element: emojiEl(type.icon) })
+    .setLngLat([lng, lat])
+    .addTo(map);
+
+  marker.getElement().addEventListener('click', () => {
     if (!state.playerPos) return;
     const d = Math.round(distanceM(state.playerPos.lat, state.playerPos.lng, lat, lng));
     setStatus(type.name + ': ' + d + ' м');
   });
-  resources.push(res);
+
+  resources.push({ id: Date.now() + Math.random(), lat, lng, marker, type, collectedAt: null });
 }
 
 function fillResources() {
@@ -189,13 +234,13 @@ setInterval(() => {
   const now = Date.now();
   for (const r of resources) {
     if (r.collectedAt && now - r.collectedAt > RESPAWN_MS) {
-      map.removeLayer(r.marker);
+      r.marker.remove();
       r.collectedAt = null;
       const [lat, lng] = randomOffset(state.playerPos.lat, state.playerPos.lng, SPAWN_RADIUS_M);
       r.lat = lat; r.lng = lng;
-      r.marker = L.marker([lat, lng], { icon: L.divIcon({
-        className: 'treasure-icon', html: r.type.icon, iconSize: [30, 30], iconAnchor: [15, 15]
-      })}).addTo(map);
+      r.marker = new maplibregl.Marker({ element: emojiEl(r.type.icon) })
+        .setLngLat([lng, lat])
+        .addTo(map);
     }
   }
   fillResources();
@@ -236,7 +281,7 @@ collectBtn.addEventListener('click', () => {
   if (!near || near.d >= COLLECT_RADIUS_M) return;
   const r = near.r;
   r.collectedAt = Date.now();
-  map.removeLayer(r.marker);
+  r.marker.remove();
   state.inventory[r.type.key] += 1;
   state.score += 1;
   renderHUD();
