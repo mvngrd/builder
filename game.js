@@ -2,7 +2,7 @@
 // КОНФИГ
 // ============================================================
 const SPAWN_RADIUS_M = 150;
-const COLLECT_RADIUS_M = 15;
+const COLLECT_RADIUS_M = 30;
 const RESPAWN_MS = 60 * 1000;
 const SPAWN_BATCH = 8;
 const MIN_MOVE_M = 5;
@@ -67,12 +67,7 @@ const map = new maplibregl.Map({
   attributionControl: false
 });
 
-// Хранилище маркеров MapLibre
-const markers = {
-  player: null,
-  playerCircle: null,
-  base: null,
-};
+const markers = { player: null, base: null };
 
 // ============================================================
 // УТИЛИТЫ
@@ -105,7 +100,6 @@ function pickResource() {
   return RESOURCE_TYPES[0];
 }
 
-// Создать DOM-элемент для эмодзи-маркера
 function emojiEl(emoji, size = 30) {
   const el = document.createElement('div');
   el.style.fontSize = (size - 6) + 'px';
@@ -131,7 +125,6 @@ function updatePlayer(lat, lng) {
   }
   state.playerPos = { lat, lng };
 
-  // Маркер игрока
   if (!markers.player) {
     const el = document.createElement('div');
     el.style.width = '18px';
@@ -148,17 +141,59 @@ function updatePlayer(lat, lng) {
     map.setCenter([lng, lat]);
     map.setZoom(17);
 
-    // База (если ещё не поставлена)
     if (!markers.base) {
       markers.base = new maplibregl.Marker({ element: emojiEl('🏠') })
         .setLngLat([lng, lat])
         .addTo(map);
     }
+
+    // Круг радиуса сбора — добавляем один раз после загрузки карты
+    map.on('load', () => {
+      map.addSource('player-circle', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [lng, lat] },
+          properties: {}
+        }
+      });
+      map.addLayer({
+        id: 'player-circle-layer',
+        type: 'circle',
+        source: 'player-circle',
+        paint: {
+          'circle-color': '#3b82f6',
+          'circle-opacity': 0.12,
+          'circle-stroke-color': '#3b82f6',
+          'circle-stroke-width': 1,
+          'circle-radius': [
+            'interpolate', ['exponential', 2], ['zoom'],
+            15, 2,
+            16, 4,
+            17, 8,
+            18, 16,
+            19, 32,
+            20, 64,
+            21, 128
+          ]
+        }
+      });
+    });
   } else {
     markers.player.setLngLat([lng, lat]);
+
+    const src = map.getSource('player-circle');
+    if (src) {
+      src.setData({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+        properties: {}
+      });
+    }
   }
   updateCollectButton();
 }
+
 // ============================================================
 // РЕСУРСЫ
 // ============================================================
