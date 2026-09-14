@@ -1,10 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-  <title>Builder</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Base Builder</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>Привет, игра!</h1>
-  <p>Если видишь этот текст — GitHub Pages работает.</p>
+  <div id="hud">
+    <div class="hud-row">
+      <span>📍 <span id="distance">0</span> м</span>
+      <span>💰 <span id="score">0</span></span>
+    </div>
+    <div class="hud-row inventory">
+      <span>🪵 <span id="inv-wood">0</span></span>
+      <span>⚙️ <span id="inv-metal">0</span></span>
+      <span>🔌 <span id="inv-chip">0</span></span>
+      <span>⛽ <span id="inv-fuel">0</span></span>
+    </div>
+    <div id="status">Определяем позицию…</div>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="actions">
+    <button id="collectBtn" disabled>Собрать</button>
+    <button id="baseBtn">🏠 База</button>
+  </div>
+
+  <div id="baseModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>🏠 База</h2>
+      <div id="buildings"></div>
+      <button id="closeBase">Закрыть</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="game.js"></script>
 </body>
 </html>
