@@ -191,7 +191,6 @@ function updatePlayer(lat, lng) {
       });
     }
   }
-  updateCollectButton();
 }
 
 // ============================================================
@@ -207,13 +206,9 @@ function spawnResource() {
     .setLngLat([lng, lat])
     .addTo(map);
 
-  marker.getElement().addEventListener('click', () => {
-    if (!state.playerPos) return;
-    const d = Math.round(distanceM(state.playerPos.lat, state.playerPos.lng, lat, lng));
-    setStatus(type.name + ': ' + d + ' м');
-  });
-
-  resources.push({ id: Date.now() + Math.random(), lat, lng, marker, type, collectedAt: null });
+const res = { id: Date.now() + Math.random(), lat, lng, marker, type, collectedAt: null };
+    marker.getElement().addEventListener('click', () => tryCollect(res));
+    resources.push(res);  
 }
 
 function fillResources() {
@@ -240,37 +235,14 @@ setInterval(() => {
 // ============================================================
 // КНОПКА СБОРА
 // ============================================================
-const collectBtn = document.getElementById('collectBtn');
-
-function nearestResource() {
-  if (!state.playerPos) return null;
-  let best = null, bestD = Infinity;
-  for (const r of resources) {
-    if (r.collectedAt) continue;
-    const d = distanceM(state.playerPos.lat, state.playerPos.lng, r.lat, r.lng);
-    if (d < bestD) { bestD = d; best = r; }
+function tryCollect(r) {
+  if (!state.playerPos) return;
+  if (r.collectedAt) return;
+  const d = distanceM(state.playerPos.lat, state.playerPos.lng, r.lat, r.lng);
+  if (d >= COLLECT_RADIUS_M) {
+    setStatus('Слишком далеко: ' + Math.round(d) + ' м');
+    return;
   }
-  return best ? { r: best, d: bestD } : null;
-}
-
-function updateCollectButton() {
-  const near = nearestResource();
-  if (near && near.d < COLLECT_RADIUS_M) {
-    collectBtn.disabled = false;
-    collectBtn.textContent = 'Собрать ' + near.r.type.icon + ' (' + Math.round(near.d) + ' м)';
-  } else if (near) {
-    collectBtn.disabled = true;
-    collectBtn.textContent = 'Ближайшее: ' + Math.round(near.d) + ' м';
-  } else {
-    collectBtn.disabled = true;
-    collectBtn.textContent = 'Ищи ресурсы…';
-  }
-}
-
-collectBtn.addEventListener('click', () => {
-  const near = nearestResource();
-  if (!near || near.d >= COLLECT_RADIUS_M) return;
-  const r = near.r;
   r.collectedAt = Date.now();
   r.marker.remove();
   state.inventory[r.type.key] += 1;
@@ -278,9 +250,7 @@ collectBtn.addEventListener('click', () => {
   renderHUD();
   saveState();
   setStatus('+1 ' + r.type.name);
-  updateCollectButton();
-});
-
+}
 // ============================================================
 // БАЗА
 // ============================================================
