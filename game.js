@@ -168,13 +168,13 @@ function updatePlayer(lat, lng) {
           'circle-stroke-width': 1,
           'circle-radius': [
   'interpolate', ['exponential', 2], ['zoom'],
-  15, 9,
-  16, 18,
-  17, 36,
-  18, 72,
-  19, 143,
-  20, 287,
-  21, 574
+  15, 15,
+  16, 30,
+  17, 60,
+  18, 120,
+  19, 240,
+  20, 480,
+  21, 960
 ]
         }
       });
