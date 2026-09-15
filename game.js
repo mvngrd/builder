@@ -1,11 +1,10 @@
 // ============================================================
 // КОНФИГ
 // ============================================================
-const SPAWN_RADIUS_M = 150;
 const COLLECT_RADIUS_M = 45;
-const RESPAWN_MS = 60 * 1000;
-const SPAWN_BATCH = 8;
 const MIN_MOVE_M = 5;
+const GRID_SIZE_DEG = 30 / 111320;   // ~30 м в градусах широты
+const RESPAWN_MS = 60 * 1000;
 
 const RESOURCE_TYPES = [
   { key: 'wood',  icon: '🪵', weight: 40, name: 'Дерево' },
@@ -82,22 +81,40 @@ function distanceM(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-function randomOffset(lat, lng, radiusM) {
-  const r = Math.sqrt(Math.random()) * radiusM;
-  const theta = Math.random() * 2 * Math.PI;
-  const dLat = (r * Math.cos(theta)) / 111320;
-  const dLng = (r * Math.sin(theta)) / (111320 * Math.cos((lat * Math.PI) / 180));
-  return [lat + dLat, lng + dLng];
+// Детерминированный хэш по координатам и seed
+function hashCoord(lat, lng, seed) {
+  const s = Math.sin(lat * 12.9898 + lng * 78.233 + seed * 37.719) * 43758.5453;
+  return s - Math.floor(s);
 }
 
-function pickResource() {
-  const total = RESOURCE_TYPES.reduce((s, r) => s + r.weight, 0);
-  let n = Math.random() * total;
-  for (const r of RESOURCE_TYPES) {
-    if (n < r.weight) return r;
-    n -= r.weight;
+// Точки сетки вокруг игрока: 3x3 ячейки по 30 м
+function gridPointsAround(lat, lng) {
+  const points = [];
+  const latGrid = Math.floor(lat / GRID_SIZE_DEG);
+  const lngGrid = Math.floor(lng / GRID_SIZE_DEG);
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const cellLat = latGrid + dy;
+      const cellLng = lngGrid + dx;
+      // 60% ячеек содержат ресурс
+      if (hashCoord(cellLat, cellLng, 1) > 0.4) {
+        const offsetLat = hashCoord(cellLat, cellLng, 2) * GRID_SIZE_DEG;
+        const offsetLng = hashCoord(cellLat, cellLng, 3) * GRID_SIZE_DEG;
+        const pLat = cellLat * GRID_SIZE_DEG + offsetLat;
+        const pLng = cellLng * GRID_SIZE_DEG + offsetLng;
+        // Тип ресурса по весам — тоже детерминирован
+        const roll = hashCoord(cellLat, cellLng, 4) * 100;
+        let acc = 0;
+        let type = RESOURCE_TYPES[0];
+        for (const t of RESOURCE_TYPES) {
+          acc += t.weight;
+          if (roll < acc) { type = t; break; }
+        }
+        points.push({ lat: pLat, lng: pLng, type });
+      }
+    }
   }
-  return RESOURCE_TYPES[0];
+  return points;
 }
 
 function emojiEl(emoji, size = 30) {
@@ -147,15 +164,11 @@ function updatePlayer(lat, lng) {
         .addTo(map);
     }
 
-    // Круг радиуса сбора — добавляем один раз после загрузки карты
+    // Круг радиуса сбора
     map.on('load', () => {
       map.addSource('player-circle', {
         type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [lng, lat] },
-          properties: {}
-        }
+        data: { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }
       });
       map.addLayer({
         id: 'player-circle-layer',
@@ -167,21 +180,14 @@ function updatePlayer(lat, lng) {
           'circle-stroke-color': '#3b82f6',
           'circle-stroke-width': 1,
           'circle-radius': [
-  'interpolate', ['exponential', 2], ['zoom'],
-  15, 22,
-  16, 45,
-  17, 90,
-  18, 180,
-  19, 360,
-  20, 720,
-  21, 1440
-]
+            'interpolate', ['exponential', 2], ['zoom'],
+            15, 22, 16, 45, 17, 90, 18, 180, 19, 360, 20, 720, 21, 1440
+          ]
         }
       });
     });
   } else {
     markers.player.setLngLat([lng, lat]);
-
     const src = map.getSource('player-circle');
     if (src) {
       src.setData({
@@ -191,49 +197,51 @@ function updatePlayer(lat, lng) {
       });
     }
   }
+
+  // Подгружаем ресурсы вокруг новой позиции
+  spawnFromGrid();
 }
 
 // ============================================================
-// РЕСУРСЫ
+// РЕСУРСЫ (детерминированные по сетке)
 // ============================================================
 const resources = [];
+const spawnedCells = new Set();
 
-function spawnResource() {
+function spawnFromGrid() {
   if (!state.playerPos) return;
-  const [lat, lng] = randomOffset(state.playerPos.lat, state.playerPos.lng, SPAWN_RADIUS_M);
-  const type = pickResource();
-  const marker = new maplibregl.Marker({ element: emojiEl(type.icon) })
-    .setLngLat([lng, lat])
-    .addTo(map);
+  const points = gridPointsAround(state.playerPos.lat, state.playerPos.lng);
+  for (const p of points) {
+    const key = p.lat.toFixed(6) + ',' + p.lng.toFixed(6);
+    if (spawnedCells.has(key)) continue;
+    spawnedCells.add(key);
 
-const res = { id: Date.now() + Math.random(), lat, lng, marker, type, collectedAt: null };
+    const marker = new maplibregl.Marker({ element: emojiEl(p.type.icon) })
+      .setLngLat([p.lng, p.lat])
+      .addTo(map);
+
+    const res = { id: key, lat: p.lat, lng: p.lng, marker, type: p.type, collectedAt: null };
     marker.getElement().addEventListener('click', () => tryCollect(res));
-    resources.push(res);  
+    resources.push(res);
+  }
 }
 
-function fillResources() {
-  const active = resources.filter(r => !r.collectedAt).length;
-  for (let i = active; i < SPAWN_BATCH; i++) spawnResource();
-}
-
+// Респавн собранных ресурсов через RESPAWN_MS
 setInterval(() => {
   const now = Date.now();
   for (const r of resources) {
     if (r.collectedAt && now - r.collectedAt > RESPAWN_MS) {
-      r.marker.remove();
       r.collectedAt = null;
-      const [lat, lng] = randomOffset(state.playerPos.lat, state.playerPos.lng, SPAWN_RADIUS_M);
-      r.lat = lat; r.lng = lng;
       r.marker = new maplibregl.Marker({ element: emojiEl(r.type.icon) })
-        .setLngLat([lng, lat])
+        .setLngLat([r.lng, r.lat])
         .addTo(map);
+      r.marker.getElement().addEventListener('click', () => tryCollect(r));
     }
   }
-  fillResources();
-}, 20000);
+}, 10000);
 
 // ============================================================
-// КНОПКА СБОРА
+// СБОР РЕСУРСА (тап по маркеру)
 // ============================================================
 function tryCollect(r) {
   if (!state.playerPos) return;
@@ -251,6 +259,7 @@ function tryCollect(r) {
   saveState();
   setStatus('+1 ' + r.type.name);
 }
+
 // ============================================================
 // БАЗА
 // ============================================================
@@ -352,7 +361,6 @@ if (!('geolocation' in navigator)) {
       updatePlayer(latitude, longitude);
       if (firstFix) {
         firstFix = false;
-        fillResources();
         setStatus('Собирай ресурсы и улучшай базу!');
       }
     },
