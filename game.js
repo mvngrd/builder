@@ -1,7 +1,7 @@
 // ============================================================
 // КОНФИГ
 // ============================================================
-const COLLECT_RADIUS_M = 45;
+const COLLECT_RADIUS_M = 30;
 const MIN_MOVE_M = 5;
 const GRID_SIZE_DEG = 30 / 111320;
 const SPAWN_VIEW_RADIUS_M = 300;
