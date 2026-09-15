@@ -180,7 +180,7 @@ function updatePlayer(lat, lng) {
     map.on('load', () => {
       map.addSource('player-circle', {
         type: 'geojson',
-        data: { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }
+        data: { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} },
       });
       map.addLayer({
         id: 'player-circle-layer',
