@@ -2,7 +2,7 @@
 // КОНФИГ
 // ============================================================
 const SPAWN_RADIUS_M = 150;
-const COLLECT_RADIUS_M = 30;
+const COLLECT_RADIUS_M = 45;
 const RESPAWN_MS = 60 * 1000;
 const SPAWN_BATCH = 8;
 const MIN_MOVE_M = 5;
