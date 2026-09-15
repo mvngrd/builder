@@ -193,10 +193,40 @@ function updatePlayer(lat, lng) {
           'circle-opacity': 0.12,
           'circle-stroke-color': '#3b82f6',
           'circle-stroke-width': 1,
-          'circle-radius': [
-            'interpolate', ['exponential', 2], ['zoom'],
-            15, 22, 16, 45, 17, 90, 18, 180, 19, 360, 20, 720, 21, 1440
-          ]
+          map.on('load', () => {
+  map.addSource('player-circle', {
+    type: 'geojson',
+    data: { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }
+  });
+  map.addLayer({
+    id: 'player-circle-layer',
+    type: 'circle',
+    source: 'player-circle',
+    paint: {
+      'circle-color': '#3b82f6',
+      'circle-opacity': 0.12,
+      'circle-stroke-color': '#3b82f6',
+      'circle-stroke-width': 1,
+      'circle-radius': 10  // значение переопределяется ниже
+    }
+  });
+
+  // Точный пересчёт метров в пиксели
+  function updateCircleRadius() {
+    const zoom = map.getZoom();
+    const center = map.getCenter();
+    const metersPerPixel =
+      156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
+    const radiusPx = COLLECT_RADIUS_M / metersPerPixel;
+    if (map.getLayer('player-circle-layer')) {
+      map.setPaintProperty('player-circle-layer', 'circle-radius', radiusPx);
+    }
+  }
+
+  updateCircleRadius();
+  map.on('zoom', updateCircleRadius);
+  map.on('move', updateCircleRadius);
+});
         }
       });
     });
