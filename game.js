@@ -3,8 +3,9 @@
 // ============================================================
 const COLLECT_RADIUS_M = 45;
 const MIN_MOVE_M = 5;
-const GRID_SIZE_DEG = 30 / 111320;   // ~30 м в градусах широты
-const RESPAWN_MS = 60 * 1000;
+const GRID_SIZE_DEG = 30 / 111320;
+const SPAWN_VIEW_RADIUS_M = 300;
+const SEED_RESET_MS = 60 * 60 * 1000;
 
 const RESOURCE_TYPES = [
   { key: 'wood',  icon: '🪵', weight: 40, name: 'Дерево' },
@@ -28,6 +29,7 @@ const state = {
   inventory: { wood: 0, metal: 0, chip: 0, fuel: 0 },
   buildings: {},
   score: 0,
+  seed: 0,
 };
 
 function loadState() {
@@ -44,6 +46,22 @@ function loadState() {
   for (const b of BUILDINGS) {
     if (state.buildings[b.id] === undefined) state.buildings[b.id] = 0;
   }
+
+  // Seed для генерации мира — стабилен в течение часа
+  try {
+    const savedSeed = localStorage.getItem('base-builder-seed');
+    if (savedSeed) {
+      const { value, born } = JSON.parse(savedSeed);
+      if (Date.now() - born < SEED_RESET_MS) {
+        state.seed = value;
+        return;
+      }
+    }
+  } catch (e) {}
+  state.seed = Math.floor(Math.random() * 1000000);
+  localStorage.setItem('base-builder-seed', JSON.stringify({
+    value: state.seed, born: Date.now()
+  }));
 }
 
 function saveState() {
@@ -81,28 +99,25 @@ function distanceM(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-// Детерминированный хэш по координатам и seed
 function hashCoord(lat, lng, seed) {
-  const s = Math.sin(lat * 12.9898 + lng * 78.233 + seed * 37.719) * 43758.5453;
+  const s = Math.sin(lat * 12.9898 + lng * 78.233 + seed * 37.719 + state.seed * 1234.5678) * 43758.5453;
   return s - Math.floor(s);
 }
 
-// Точки сетки вокруг игрока: 3x3 ячейки по 30 м
 function gridPointsAround(lat, lng) {
   const points = [];
   const latGrid = Math.floor(lat / GRID_SIZE_DEG);
   const lngGrid = Math.floor(lng / GRID_SIZE_DEG);
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
+  // 5x5 ячеек вокруг игрока (запас на движение)
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
       const cellLat = latGrid + dy;
       const cellLng = lngGrid + dx;
-      // 60% ячеек содержат ресурс
-      if (hashCoord(cellLat, cellLng, 1) > 0.4) {
-        const offsetLat = hashCoord(cellLat, cellLng, 2) * GRID_SIZE_DEG;
-        const offsetLng = hashCoord(cellLat, cellLng, 3) * GRID_SIZE_DEG;
+      if (hashCoord(cellLat, cellLng, 1) > 0.5) {
+        const offsetLat = (hashCoord(cellLat, cellLng, 2) - 0.5) * GRID_SIZE_DEG * 0.8;
+        const offsetLng = (hashCoord(cellLat, cellLng, 3) - 0.5) * GRID_SIZE_DEG * 0.8;
         const pLat = cellLat * GRID_SIZE_DEG + offsetLat;
         const pLng = cellLng * GRID_SIZE_DEG + offsetLng;
-        // Тип ресурса по весам — тоже детерминирован
         const roll = hashCoord(cellLat, cellLng, 4) * 100;
         let acc = 0;
         let type = RESOURCE_TYPES[0];
@@ -164,7 +179,6 @@ function updatePlayer(lat, lng) {
         .addTo(map);
     }
 
-    // Круг радиуса сбора
     map.on('load', () => {
       map.addSource('player-circle', {
         type: 'geojson',
@@ -198,61 +212,76 @@ function updatePlayer(lat, lng) {
     }
   }
 
-  // Подгружаем ресурсы вокруг новой позиции
   spawnFromGrid();
 }
 
 // ============================================================
-// РЕСУРСЫ (детерминированные по сетке)
+// РЕСУРСЫ (постоянный мир, без респавна)
 // ============================================================
 const resources = [];
-const spawnedCells = new Set();
+const resourceMap = new Map();
+let collectedSet = new Set();
+
+function loadCollected() {
+  try {
+    const raw = localStorage.getItem('base-builder-collected');
+    if (raw) collectedSet = new Set(JSON.parse(raw));
+  } catch (e) {}
+}
+
+function saveCollected() {
+  localStorage.setItem('base-builder-collected', JSON.stringify([...collectedSet]));
+}
 
 function spawnFromGrid() {
   if (!state.playerPos) return;
   const points = gridPointsAround(state.playerPos.lat, state.playerPos.lng);
+
   for (const p of points) {
-    const key = p.lat.toFixed(6) + ',' + p.lng.toFixed(6);
-    if (spawnedCells.has(key)) continue;
-    spawnedCells.add(key);
+    const id = p.lat.toFixed(6) + ',' + p.lng.toFixed(6);
+    if (resourceMap.has(id)) continue;
+    if (collectedSet.has(id)) continue;
 
     const marker = new maplibregl.Marker({ element: emojiEl(p.type.icon) })
       .setLngLat([p.lng, p.lat])
       .addTo(map);
 
-    const res = { id: key, lat: p.lat, lng: p.lng, marker, type: p.type, collectedAt: null };
+    const res = { id, lat: p.lat, lng: p.lng, marker, type: p.type };
     marker.getElement().addEventListener('click', () => tryCollect(res));
     resources.push(res);
+    resourceMap.set(id, res);
+  }
+
+  // Убираем далёкие маркеры, чтобы не забивать карту
+  for (let i = resources.length - 1; i >= 0; i--) {
+    const r = resources[i];
+    const d = distanceM(state.playerPos.lat, state.playerPos.lng, r.lat, r.lng);
+    if (d > SPAWN_VIEW_RADIUS_M) {
+      r.marker.remove();
+      resourceMap.delete(r.id);
+      resources.splice(i, 1);
+    }
   }
 }
 
-// Респавн собранных ресурсов через RESPAWN_MS
-setInterval(() => {
-  const now = Date.now();
-  for (const r of resources) {
-    if (r.collectedAt && now - r.collectedAt > RESPAWN_MS) {
-      r.collectedAt = null;
-      r.marker = new maplibregl.Marker({ element: emojiEl(r.type.icon) })
-        .setLngLat([r.lng, r.lat])
-        .addTo(map);
-      r.marker.getElement().addEventListener('click', () => tryCollect(r));
-    }
-  }
-}, 10000);
-
 // ============================================================
-// СБОР РЕСУРСА (тап по маркеру)
+// СБОР РЕСУРСА
 // ============================================================
 function tryCollect(r) {
   if (!state.playerPos) return;
-  if (r.collectedAt) return;
+  if (collectedSet.has(r.id)) return;
   const d = distanceM(state.playerPos.lat, state.playerPos.lng, r.lat, r.lng);
   if (d >= COLLECT_RADIUS_M) {
     setStatus('Слишком далеко: ' + Math.round(d) + ' м');
     return;
   }
-  r.collectedAt = Date.now();
+  collectedSet.add(r.id);
+  saveCollected();
   r.marker.remove();
+  resourceMap.delete(r.id);
+  const idx = resources.indexOf(r);
+  if (idx >= 0) resources.splice(idx, 1);
+
   state.inventory[r.type.key] += 1;
   state.score += 1;
   renderHUD();
@@ -349,6 +378,7 @@ function setStatus(text) {
 // ЗАПУСК
 // ============================================================
 loadState();
+loadCollected();
 renderHUD();
 
 if (!('geolocation' in navigator)) {
