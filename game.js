@@ -1,7 +1,7 @@
 // ============================================================
 // КОНФИГ
 // ============================================================
-const COLLECT_RADIUS_M = 28;
+const COLLECT_RADIUS_M = 35;
 const MIN_MOVE_M = 5;
 const GRID_SIZE_DEG = 30 / 111320;
 const SPAWN_VIEW_RADIUS_M = 300;
@@ -47,7 +47,6 @@ function loadState() {
     if (state.buildings[b.id] === undefined) state.buildings[b.id] = 0;
   }
 
-  // Seed для генерации мира — стабилен в течение часа
   try {
     const savedSeed = localStorage.getItem('base-builder-seed');
     if (savedSeed) {
@@ -74,7 +73,7 @@ function saveState() {
 }
 
 // ============================================================
-// КАРТА (MapLibre)
+// КАРТА
 // ============================================================
 const map = new maplibregl.Map({
   container: 'map',
@@ -108,7 +107,6 @@ function gridPointsAround(lat, lng) {
   const points = [];
   const latGrid = Math.floor(lat / GRID_SIZE_DEG);
   const lngGrid = Math.floor(lng / GRID_SIZE_DEG);
-  // 5x5 ячеек вокруг игрока (запас на движение)
   for (let dy = -2; dy <= 2; dy++) {
     for (let dx = -2; dx <= 2; dx++) {
       const cellLat = latGrid + dy;
@@ -193,40 +191,10 @@ function updatePlayer(lat, lng) {
           'circle-opacity': 0.12,
           'circle-stroke-color': '#3b82f6',
           'circle-stroke-width': 1,
-          map.on('load', () => {
-  map.addSource('player-circle', {
-    type: 'geojson',
-    data: { type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] }, properties: {} }
-  });
-  map.addLayer({
-    id: 'player-circle-layer',
-    type: 'circle',
-    source: 'player-circle',
-    paint: {
-      'circle-color': '#3b82f6',
-      'circle-opacity': 0.12,
-      'circle-stroke-color': '#3b82f6',
-      'circle-stroke-width': 1,
-      'circle-radius': 10  // значение переопределяется ниже
-    }
-  });
-
-  // Точный пересчёт метров в пиксели
-  function updateCircleRadius() {
-    const zoom = map.getZoom();
-    const center = map.getCenter();
-    const metersPerPixel =
-      156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
-    const radiusPx = COLLECT_RADIUS_M / metersPerPixel;
-    if (map.getLayer('player-circle-layer')) {
-      map.setPaintProperty('player-circle-layer', 'circle-radius', radiusPx);
-    }
-  }
-
-  updateCircleRadius();
-  map.on('zoom', updateCircleRadius);
-  map.on('move', updateCircleRadius);
-});
+          'circle-radius': [
+            'interpolate', ['exponential', 2], ['zoom'],
+            15, 22, 16, 45, 17, 90, 18, 180, 19, 360, 20, 720, 21, 1440
+          ]
         }
       });
     });
@@ -282,7 +250,6 @@ function spawnFromGrid() {
     resourceMap.set(id, res);
   }
 
-  // Убираем далёкие маркеры, чтобы не забивать карту
   for (let i = resources.length - 1; i >= 0; i--) {
     const r = resources[i];
     const d = distanceM(state.playerPos.lat, state.playerPos.lng, r.lat, r.lng);
@@ -295,7 +262,7 @@ function spawnFromGrid() {
 }
 
 // ============================================================
-// СБОР РЕСУРСА
+// СБОР
 // ============================================================
 function tryCollect(r) {
   if (!state.playerPos) return;
