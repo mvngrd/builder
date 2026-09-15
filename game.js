@@ -80,6 +80,8 @@ const map = new maplibregl.Map({
   style: 'https://tiles.openfreemap.org/styles/liberty',
   center: [37.61, 55.75],
   zoom: 16,
+  minZoom: 14,
+  maxZoom: 19,
   attributionControl: false
 });
 
